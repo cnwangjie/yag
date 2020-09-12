@@ -1,12 +1,12 @@
 use anyhow::Result;
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use std::ffi::OsStr;
 use std::process::Command;
-use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 
 const FRAGMENT: &AsciiSet = &CONTROLS.add(b'/');
 
-pub fn url_encode(component: String) -> String {
-    utf8_percent_encode(&component, FRAGMENT).to_string()
+pub fn url_encode(component: &str) -> String {
+    utf8_percent_encode(component, FRAGMENT).to_string()
 }
 
 pub fn spawn(command: &str) -> Result<String> {
@@ -19,6 +19,10 @@ pub fn spawn(command: &str) -> Result<String> {
     let result = String::from_utf8(buf)?;
 
     Ok(result)
+}
+
+pub fn get_current_branch() -> Result<String> {
+    spawn("git branch --show-current")
 }
 
 #[cfg(test)]

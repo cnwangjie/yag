@@ -1,7 +1,7 @@
 [package]
 name = "yag"
 version = "0.1.0"
-authors = ["Yunhao Zhang <zhangyunhao.wangjie@bytedance.com>"]
+authors = ["Wang Jie <i@i8e.net>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -17,3 +17,6 @@ git-url-parse = "^0.2.0"
 anyhow = "^1.0.32"
 percent-encoding = "^2.1.0"
 toml = "^0.5.6"
+async-trait = "^0.1.40"
+clap = "^2.33.3"
+log = { version = "^0.4.11", features = ["std"] }

@@ -2,7 +2,7 @@ use crate::logger::Logger;
 use crate::repository::get_repo;
 use crate::repository::Repository;
 use crate::utils::get_current_branch;
-use anyhow::Result;
+use anyhow::{Error, Result};
 use clap::*;
 use log::debug;
 
@@ -15,18 +15,22 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
             SubCommand::with_name("pr")
                 .about("Manage requests")
                 .alias("mr")
-                .subcommand(SubCommand::with_name("list")
-                    .about("List pull requests"))
+                .subcommand(SubCommand::with_name("list").about("List pull requests"))
                 .subcommand(
                     SubCommand::with_name("create")
                         .alias("new")
-                        .arg(Arg::with_name("title").required(true).index(1))
-                        .arg(Arg::with_name("base").alias("target").long("base"))
+                        .arg(Arg::with_name("title").required(true).takes_value(true))
+                        .arg(
+                            Arg::with_name("base")
+                                .alias("target")
+                                .long("base")
+                                .takes_value(true),
+                        )
                         .arg(
                             Arg::with_name("head")
                                 .alias("source")
                                 .long("head")
-                                .required(true),
+                                .takes_value(true),
                         ),
                 ),
         )
@@ -41,12 +45,12 @@ pub async fn run() -> Result<()> {
     debug!("verbose mode enabled");
 
     if let Some(matches) = matches.subcommand_matches("pr") {
-        if let Some(subcommand) = matches.subcommand_name() {
+        if let (subcommand, Some(matches)) = matches.subcommand() {
             let repo: Box<dyn Repository> = get_repo().await?;
             match subcommand {
                 "list" => {
                     repo.list_pull_requests().await?;
-                },
+                }
                 "create" => {
                     let source_branch = match matches.value_of("head") {
                         Some(head) => head.to_string(),
@@ -55,13 +59,13 @@ pub async fn run() -> Result<()> {
                     repo.create_pull_request(
                         &source_branch,
                         matches.value_of("base").unwrap_or("master"),
-                        matches.value_of("title").unwrap(),
+                        matches
+                            .value_of("title")
+                            .ok_or(Error::msg("Title must be specified"))?,
                     )
                     .await?;
-                },
-                _ => {
-
                 }
+                _ => {}
             }
         } else {
             println!("{}", matches.usage());

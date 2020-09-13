@@ -22,7 +22,7 @@ pub fn spawn(command: &str) -> Result<String> {
 }
 
 pub fn get_current_branch() -> Result<String> {
-    spawn("git branch --show-current")
+    spawn("git branch --show-current").map(|x| x.trim().to_string())
 }
 
 #[cfg(test)]

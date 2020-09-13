@@ -1,8 +1,7 @@
 use crate::profile::load_profile;
 use crate::profile::Profile;
 use crate::repository::Repository;
-use crate::structs::MergeRequest;
-use crate::structs::Project;
+use crate::structs::PullRequest;
 use crate::utils::url_encode;
 use anyhow::Result;
 use async_trait::async_trait;
@@ -10,7 +9,58 @@ use git_url_parse::GitUrl;
 use log::debug;
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Method, RequestBuilder, Response, Url};
+use serde_derive::*;
 use serde_json::json;
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Project {
+    id: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct User {
+    id: u64,
+    name: String,
+    username: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MergeRequest {
+    id: u64,
+    iid: u64,
+    project_id: u64,
+    title: String,
+    description: Option<String>,
+    state: String,
+    created_at: String,
+    updated_at: String,
+    target_branch: String,
+    source_branch: String,
+    author: User,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum GitLabResponse<T> {
+    Error {
+        error: Option<Vec<String>>,
+        message: Option<String>,
+    },
+    Data(T),
+}
+
+impl From<MergeRequest> for PullRequest {
+    fn from(mr: MergeRequest) -> Self {
+        Self {
+            id: mr.iid,
+            title: mr.title,
+            author: mr.author.username,
+            base: mr.target_branch,
+            head: mr.source_branch,
+            updated_at: mr.updated_at,
+        }
+    }
+}
 
 pub struct GitLabClient {
     host: String,
@@ -40,10 +90,13 @@ impl GitLabClient {
     }
 
     async fn get_project_id(&self, name: &str) -> Result<u64> {
-        let res = self.call(
-            Method::GET,
-            &format!("/api/v4/projects/{}", url_encode(name)),
-        ).send().await?;
+        let res = self
+            .call(
+                Method::GET,
+                &format!("/api/v4/projects/{}", url_encode(name)),
+            )
+            .send()
+            .await?;
 
         let data = res.error_for_status()?.json::<Project>().await?;
 
@@ -76,21 +129,25 @@ impl GitLabRepository {
 #[async_trait]
 impl Repository for GitLabRepository {
     async fn list_pull_requests(&self) -> Result<()> {
-        let data = self
+        let res = self
             .client
             .call(
                 Method::GET,
-                &format!(
-                    "/api/v4/projects/{}/merge_requests?state=opened",
-                    self.project_id
-                ),
+                &format!("/api/v4/projects/{}/merge_requests", self.project_id),
             )
+            .query(&[("state", "opened"), ("per_page", "100")])
+            .query(&[("page", 1)])
             .send()
-            .await?
-            .json::<Vec<MergeRequest>>()
             .await?;
 
+        debug!("{:#?}", res);
+
+        let data: Vec<MergeRequest> = res.json::<Vec<MergeRequest>>().await?;
+
         debug!("{:#?}", data);
+
+        data.iter()
+            .for_each(|mr| PullRequest::from(mr.to_owned()).print());
         Ok(())
     }
 
@@ -100,6 +157,7 @@ impl Repository for GitLabRepository {
         target_branch: &str,
         title: &str,
     ) -> Result<()> {
+        debug!("source: {} target: {}", source_branch, target_branch);
         let data = self
             .client
             .call(
@@ -117,7 +175,7 @@ impl Repository for GitLabRepository {
             )
             .send()
             .await?
-            .text()
+            .json::<GitLabResponse<MergeRequest>>()
             .await?;
 
         debug!("{:#?}", data);

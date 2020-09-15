@@ -3,6 +3,13 @@ name = "yag"
 version = "0.1.0"
 authors = ["Wang Jie <i@i8e.net>"]
 edition = "2018"
+license = "MIT"
+description = "YAG is Yet Another Git CLI tool"
+readme = "README.md"
+homepage = "https://github.com/cnwangjie/yag"
+repository = "https://github.com/cnwangjie/yag"
+keywords = ["cli", "git"]
+categories = ["command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

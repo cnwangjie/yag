@@ -1,3 +1,4 @@
+use crate::structs::PullRequest;
 use crate::gitlab::GitLabRepository;
 use crate::utils::spawn;
 use anyhow::*;
@@ -6,13 +7,14 @@ use git_url_parse::GitUrl;
 
 #[async_trait]
 pub trait Repository {
-    async fn list_pull_requests(&self) -> Result<()>;
+    async fn get_pull_request(&self, id: usize) -> Result<PullRequest>;
+    async fn list_pull_requests(&self) -> Result<Vec<PullRequest>>;
     async fn create_pull_request(
         &self,
         source_branch: &str,
         target_branch: &str,
         title: &str,
-    ) -> Result<()>;
+    ) -> Result<PullRequest>;
 }
 
 pub fn get_remote_url() -> Result<GitUrl> {

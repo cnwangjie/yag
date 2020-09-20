@@ -15,6 +15,11 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
             SubCommand::with_name("pr")
                 .about("Manage requests")
                 .alias("mr")
+                .subcommand(
+                    SubCommand::with_name("get")
+                        .about("Get detail of single pull request")
+                        .arg(Arg::with_name("id").required(true).takes_value(true))
+                    )
                 .subcommand(SubCommand::with_name("list").about("List pull requests"))
                 .subcommand(
                     SubCommand::with_name("create")
@@ -37,7 +42,7 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
 }
 
 pub async fn run() -> Result<()> {
-    let mut app = get_app();
+    let app = get_app();
     let matches = app.clone().get_matches();
 
     Logger::init(matches.is_present("v"))?;
@@ -48,8 +53,14 @@ pub async fn run() -> Result<()> {
         if let (subcommand, Some(matches)) = matches.subcommand() {
             let repo: Box<dyn Repository> = get_repo().await?;
             match subcommand {
+                "get" => {
+                    let id = matches.value_of("id").and_then(|s| s.parse::<usize>().ok()).unwrap();
+                    let pr = repo.get_pull_request(id).await?;
+                    pr.print_detail();
+                }
                 "list" => {
-                    repo.list_pull_requests().await?;
+                    let pull_requests = repo.list_pull_requests().await?;
+                    pull_requests.iter().for_each(|pr| pr.println());
                 }
                 "create" => {
                     let source_branch = match matches.value_of("head") {

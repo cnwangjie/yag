@@ -3,12 +3,12 @@ use crate::profile::Profile;
 use crate::repository::Repository;
 use crate::structs::PullRequest;
 use crate::utils::url_encode;
-use anyhow::Result;
+use anyhow::*;
 use async_trait::async_trait;
 use git_url_parse::GitUrl;
 use log::debug;
 use reqwest::header::HeaderMap;
-use reqwest::{Client, Method, RequestBuilder, Response, Url};
+use reqwest::{Client, Method, RequestBuilder, Url};
 use serde_derive::*;
 use serde_json::json;
 
@@ -37,6 +37,7 @@ pub struct MergeRequest {
     target_branch: String,
     source_branch: String,
     author: User,
+    web_url: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -58,6 +59,7 @@ impl From<MergeRequest> for PullRequest {
             base: mr.target_branch,
             head: mr.source_branch,
             updated_at: mr.updated_at,
+            url: mr.web_url,
         }
     }
 }
@@ -128,7 +130,17 @@ impl GitLabRepository {
 
 #[async_trait]
 impl Repository for GitLabRepository {
-    async fn list_pull_requests(&self) -> Result<()> {
+    async fn get_pull_request(&self, id: usize) -> Result<PullRequest> {
+        let res = self.client
+            .call(Method::GET, &format!("/api/v4/projects/{}/merge_requests/{}", self.project_id, id))
+            .send()
+            .await?;
+        let mr = res.json::<MergeRequest>().await?;
+
+        Ok(PullRequest::from(mr))
+    }
+
+    async fn list_pull_requests(&self) -> Result<Vec<PullRequest>> {
         let res = self
             .client
             .call(
@@ -146,9 +158,12 @@ impl Repository for GitLabRepository {
 
         debug!("{:#?}", data);
 
-        data.iter()
-            .for_each(|mr| PullRequest::from(mr.to_owned()).print());
-        Ok(())
+        let pull_requests = data.iter()
+            .map(|mr| mr.to_owned())
+            .map(PullRequest::from)
+            .collect();
+
+        Ok(pull_requests)
     }
 
     async fn create_pull_request(
@@ -156,7 +171,7 @@ impl Repository for GitLabRepository {
         source_branch: &str,
         target_branch: &str,
         title: &str,
-    ) -> Result<()> {
+    ) -> Result<PullRequest> {
         debug!("source: {} target: {}", source_branch, target_branch);
         let data = self
             .client
@@ -179,6 +194,17 @@ impl Repository for GitLabRepository {
             .await?;
 
         debug!("{:#?}", data);
-        Ok(())
+
+        match data {
+            GitLabResponse::Error {
+                error,
+                message,
+            } => {
+                let msg = message.or_else(|| error.and_then(|err| Some(err.join("\n"))))
+                    .unwrap_or("unknown error".to_string());
+                bail!(msg)
+            },
+            GitLabResponse::Data(data) => Ok(PullRequest::from(data)),
+        }
     }
 }

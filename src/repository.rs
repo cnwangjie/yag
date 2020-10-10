@@ -15,6 +15,7 @@ pub trait Repository {
         target_branch: &str,
         title: &str,
     ) -> Result<PullRequest>;
+    async fn close_pull_request(&self, id: usize) -> Result<PullRequest>;
 }
 
 pub fn get_remote_url() -> Result<GitUrl> {

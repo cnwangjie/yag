@@ -1,3 +1,4 @@
+use std::fmt;
 use crate::profile::load_profile;
 use crate::profile::Profile;
 use crate::repository::Repository;
@@ -43,11 +44,28 @@ pub struct MergeRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum GitLabResponse<T> {
+    Data(T),
     Error {
         error: Option<Vec<String>>,
-        message: Option<String>,
+        message: Option<serde_json::Value>,
     },
-    Data(T),
+}
+
+impl<T> fmt::Display for GitLabResponse<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        match &*self {
+            GitLabResponse::Error {
+                error,
+                message,
+            } => {
+                let msg = message.as_ref().and_then(|m| Some(format!("{:#}", m)))
+                    .or_else(|| error.as_ref().and_then(|err| Some(err.join("\n"))))
+                    .unwrap_or("unknown error".to_string());
+                write!(f, "{}", msg)
+            },
+            _ => write!(f, "[data]")
+        }
+    }
 }
 
 impl From<MergeRequest> for PullRequest {
@@ -130,6 +148,7 @@ impl GitLabRepository {
 
 #[async_trait]
 impl Repository for GitLabRepository {
+    // TODO: add error handling for all methods
     async fn get_pull_request(&self, id: usize) -> Result<PullRequest> {
         let res = self.client
             .call(Method::GET, &format!("/api/v4/projects/{}/merge_requests/{}", self.project_id, id))
@@ -173,7 +192,7 @@ impl Repository for GitLabRepository {
         title: &str,
     ) -> Result<PullRequest> {
         debug!("source: {} target: {}", source_branch, target_branch);
-        let data = self
+        let res = self
             .client
             .call(
                 Method::POST,
@@ -189,22 +208,47 @@ impl Repository for GitLabRepository {
                 .to_string(),
             )
             .send()
-            .await?
-            .json::<GitLabResponse<MergeRequest>>()
             .await?;
+
+        let text = res.text().await?;
+
+        debug!("{:#?}", text);
+
+        // let data = res
+        //     .json::<GitLabResponse<MergeRequest>>()
+        //     .await?;
+
+        let data = serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?;
 
         debug!("{:#?}", data);
 
         match data {
-            GitLabResponse::Error {
-                error,
-                message,
-            } => {
-                let msg = message.or_else(|| error.and_then(|err| Some(err.join("\n"))))
-                    .unwrap_or("unknown error".to_string());
-                bail!(msg)
-            },
             GitLabResponse::Data(data) => Ok(PullRequest::from(data)),
+            _ => bail!(format!("{}", data)),
+        }
+    }
+
+    async fn close_pull_request(&self, id: usize) -> Result<PullRequest> {
+        let res = self.client
+            .call(Method::PUT, &format!("/api/v4/projects/{}/merge_requests/{}", self.project_id, id))
+            .header("Content-Type", "application/json")
+            .body(
+                json!({
+                    "state_event": "close",
+                }).to_string(),
+            )
+            .send()
+            .await?;
+
+        let text = res.text().await?;
+        debug!("{:#?}", text);
+
+        let data = serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?;
+
+        debug!("{:#?}", data);
+        match data {
+            GitLabResponse::Data(data) => Ok(PullRequest::from(data)),
+            _ => bail!(format!("{}", data)),
         }
     }
 }

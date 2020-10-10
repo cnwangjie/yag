@@ -10,7 +10,13 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
     App::new("yag")
         .version(crate_version!())
         .author(crate_authors!())
-        .arg(Arg::with_name("v").short("v").help("verbose mode"))
+        .arg(
+            Arg::with_name("v")
+                .short("v")
+                .long("verbose")
+                .help("verbose mode")
+                .global(true),
+        )
         .subcommand(
             SubCommand::with_name("pr")
                 .about("Manage requests")
@@ -18,12 +24,18 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                 .subcommand(
                     SubCommand::with_name("get")
                         .about("Get detail of single pull request")
-                        .arg(Arg::with_name("id").required(true).takes_value(true))
-                    )
+                        .arg(Arg::with_name("id").required(true).takes_value(true)),
+                )
+                .subcommand(
+                    SubCommand::with_name("close")
+                        .about("Close pull request")
+                        .arg(Arg::with_name("id").required(true).takes_value(true)),
+                )
                 .subcommand(SubCommand::with_name("list").about("List pull requests"))
                 .subcommand(
                     SubCommand::with_name("create")
                         .alias("new")
+                        .about("Create a new pull request")
                         .arg(Arg::with_name("title").required(true).takes_value(true))
                         .arg(
                             Arg::with_name("base")
@@ -46,7 +58,6 @@ pub async fn run() -> Result<()> {
     let matches = app.clone().get_matches();
 
     Logger::init(matches.is_present("v"))?;
-
     debug!("verbose mode enabled");
 
     if let Some(matches) = matches.subcommand_matches("pr") {
@@ -54,7 +65,10 @@ pub async fn run() -> Result<()> {
             let repo: Box<dyn Repository> = get_repo().await?;
             match subcommand {
                 "get" => {
-                    let id = matches.value_of("id").and_then(|s| s.parse::<usize>().ok()).unwrap();
+                    let id = matches
+                        .value_of("id")
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap();
                     let pr = repo.get_pull_request(id).await?;
                     pr.print_detail();
                 }
@@ -75,6 +89,14 @@ pub async fn run() -> Result<()> {
                             .ok_or(Error::msg("Title must be specified"))?,
                     )
                     .await?;
+                }
+                "close" => {
+                    let id = matches
+                        .value_of("id")
+                        .and_then(|s| s.parse::<usize>().ok())
+                        .unwrap();
+                    let pr = repo.close_pull_request(id).await?;
+                    pr.print_detail();
                 }
                 _ => {}
             }

@@ -41,12 +41,14 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                             Arg::with_name("base")
                                 .alias("target")
                                 .long("base")
+                                .short("b")
                                 .takes_value(true),
                         )
                         .arg(
                             Arg::with_name("head")
                                 .alias("source")
                                 .long("head")
+                                .short("h")
                                 .takes_value(true),
                         ),
                 ),
@@ -88,7 +90,8 @@ pub async fn run() -> Result<()> {
                             .value_of("title")
                             .ok_or(Error::msg("Title must be specified"))?,
                     )
-                    .await?;
+                    .await?
+                    .print_detail();
                 }
                 "close" => {
                     let id = matches

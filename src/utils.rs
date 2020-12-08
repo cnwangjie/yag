@@ -25,6 +25,10 @@ pub fn get_current_branch() -> Result<String> {
     spawn("git rev-parse --abbrev-ref HEAD").map(|x| x.trim().to_string())
 }
 
+pub fn get_latest_commit_message() -> Result<String> {
+    spawn("git log -1 --pretty=%B").map(|x| x.trim().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

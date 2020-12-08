@@ -1,7 +1,7 @@
 use crate::logger::Logger;
 use crate::repository::get_repo;
 use crate::repository::Repository;
-use crate::utils::get_current_branch;
+use crate::utils;
 use anyhow::{Error, Result};
 use clap::*;
 use log::debug;
@@ -36,7 +36,7 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                     SubCommand::with_name("create")
                         .alias("new")
                         .about("Create a new pull request")
-                        .arg(Arg::with_name("title").required(true).takes_value(true))
+                        .arg(Arg::with_name("title").takes_value(true))
                         .arg(
                             Arg::with_name("base")
                                 .alias("target")
@@ -81,14 +81,20 @@ pub async fn run() -> Result<()> {
                 "create" => {
                     let source_branch = match matches.value_of("head") {
                         Some(head) => head.to_string(),
-                        _ => get_current_branch()?,
+                        _ => utils::get_current_branch()?,
                     };
+                    let title = matches
+                        .value_of("title")
+                        .map(|title| title.to_string())
+                        .or_else(|| {
+                            utils::get_latest_commit_message().ok()
+                        })
+                        .ok_or(Error::msg("Cannot get latest commit message. Please specify title manually."))?;
+
                     repo.create_pull_request(
                         &source_branch,
                         matches.value_of("base").unwrap_or("master"),
-                        matches
-                            .value_of("title")
-                            .ok_or(Error::msg("Title must be specified"))?,
+                        &title,
                     )
                     .await?
                     .print_detail();

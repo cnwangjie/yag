@@ -29,6 +29,10 @@ pub fn get_latest_commit_message() -> Result<String> {
     spawn("git log -1 --pretty=%B").map(|x| x.trim().to_string())
 }
 
+pub fn get_git_config(key: &str) -> Result<String> {
+    spawn(&format!("git config --get {}", key)).map(|x| x.trim().to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

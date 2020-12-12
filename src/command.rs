@@ -19,7 +19,7 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
         )
         .subcommand(
             SubCommand::with_name("pr")
-                .about("Manage requests")
+                .about("Manage pull requests (aka. merge request for GitLab)")
                 .alias("mr")
                 .subcommand(
                     SubCommand::with_name("get")
@@ -83,6 +83,14 @@ pub async fn run() -> Result<()> {
                         Some(head) => head.to_string(),
                         _ => utils::get_current_branch()?,
                     };
+
+                    let target_branch = matches.value_of("base")
+                        .map(|base| base.to_string())
+                        .or_else(|| {
+                            utils::get_git_config("yag.pr.target").ok()
+                        })
+                        .unwrap_or("master".to_string());
+
                     let title = matches
                         .value_of("title")
                         .map(|title| title.to_string())
@@ -93,7 +101,7 @@ pub async fn run() -> Result<()> {
 
                     repo.create_pull_request(
                         &source_branch,
-                        matches.value_of("base").unwrap_or("master"),
+                        &target_branch,
                         &title,
                     )
                     .await?

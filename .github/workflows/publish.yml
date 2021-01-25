@@ -20,7 +20,7 @@ jobs:
     - name: Publish
       run: |
         cargo login $PUBLISH_TOKEN
-        cargo publish --dry-run
+        cargo publish
       env:
         PUBLISH_TOKEN: ${{ secrets.PUBLISH_TOKEN }}
     - name: Create Release

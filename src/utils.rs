@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use std::ffi::OsStr;
 use std::process::Command;
@@ -13,8 +13,15 @@ pub fn spawn(command: &str) -> Result<String> {
     let mut parts = command.split(' ');
     let program = parts.next().unwrap();
     let args: Vec<&OsStr> = parts.map(OsStr::new).collect();
+    let mut cmd = Command::new(program);
 
-    let buf = Command::new(program).args(args).output()?.stdout;
+    cmd.args(args);
+
+    if !cmd.status()?.success() {
+        bail!(format!("Failed to execute {}", command))
+    }
+
+    let buf = cmd.output()?.stdout;
 
     let result = String::from_utf8(buf)?;
 

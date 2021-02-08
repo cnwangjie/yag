@@ -1,7 +1,10 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use std::ffi::OsStr;
-use std::process::Command;
+use std::{
+    process::Command,
+    ffi::OsStr,
+    io::{stdin, stdout, Write},
+};
 
 const FRAGMENT: &AsciiSet = &CONTROLS.add(b'/');
 
@@ -33,11 +36,26 @@ pub fn get_current_branch() -> Result<String> {
 }
 
 pub fn get_latest_commit_message() -> Result<String> {
-    spawn("git log -1 --pretty=%B").map(|x| x.trim().to_string())
+    spawn("git rev-list --format=%B --max-count=1 HEAD").map(|x| {
+        x.trim()
+            .split("\n")
+            .skip(1)
+            .collect::<Vec<&str>>()
+            .join("\n")
+            .to_string()
+    })
 }
 
 pub fn get_git_config(key: &str) -> Result<String> {
     spawn(&format!("git config --get {}", key)).map(|x| x.trim().to_string())
+}
+
+pub fn user_input(prompt: &str) -> Result<String> {
+    stdout().write_all(prompt.as_bytes())?;
+    stdout().flush()?;
+    let mut input = String::new();
+    stdin().read_line(&mut input)?;
+    Ok(input.trim().to_string())
 }
 
 #[cfg(test)]
@@ -47,5 +65,10 @@ mod tests {
     #[test]
     fn test_spawn() {
         assert_eq!(spawn("echo 123").ok().unwrap(), "123\n")
+    }
+
+    #[test]
+    fn test_get_latest_commit_message() {
+        println!("result=[{}]", get_latest_commit_message().ok().unwrap())
     }
 }

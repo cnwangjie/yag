@@ -1373,6 +1373,7 @@ dependencies = [
  "colored",
  "futures",
  "git-url-parse",
+ "libc",
  "log",
  "percent-encoding",
  "reqwest",

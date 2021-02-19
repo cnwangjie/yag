@@ -23,7 +23,9 @@ pub struct GitLabSelfHostedConfig {
 
 impl ProfileConfig for GitLabSelfHostedConfig {
     fn fill_profile(&self, profile: &mut Profile) {
-        profile.gitlab_self_hosted = Some(self.to_owned());
+        let mut default = vec![];
+        let configs = profile.gitlab_self_hosted.as_mut().unwrap_or(&mut default);
+        configs.push(self.to_owned());
     }
 }
 
@@ -44,7 +46,7 @@ impl Prompter for GitLabSelfHostedPrompter {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Profile {
-    gitlab_self_hosted: Option<GitLabSelfHostedConfig>,
+    gitlab_self_hosted: Option<Vec<GitLabSelfHostedConfig>>,
 }
 
 impl Profile {
@@ -55,12 +57,13 @@ impl Profile {
     }
 
     pub fn get_token_by_host(&self, host: &str) -> Option<String> {
-        let gitlab_self_hosted = self.gitlab_self_hosted.as_ref()?;
-        if gitlab_self_hosted.host.eq(host) {
-            Some(gitlab_self_hosted.token.clone())
-        } else {
-            None
-        }
+        self.gitlab_self_hosted.as_ref().and_then(|configs| {
+            configs.iter().find(|config| {
+                config.host.eq(host)
+            }).and_then(|config| {
+                Some(config.token.clone())
+            })
+        })
     }
 }
 
@@ -78,13 +81,29 @@ async fn write_profile(profile: &Profile) -> Result<()> {
     Ok(())
 }
 
-pub async fn load_profile() -> Result<Profile> {
-    let profile = match profile_exists() {
-        true => {
-            let data = fs::read_to_string(get_profile_path())?;
-            toml::from_str::<Profile>(&data)?
+fn migrate_profile(value: &mut toml::Value) {
+    // gitlab_self_hosted map to array
+    value.as_table_mut().map(|v| {
+        if let Some(config) = v.get("gitlab_self_hosted") {
+            if !config.is_array() {
+                let config = config.clone();
+                v.insert("gitlab_self_hosted".to_string(), toml::Value::Array(vec![config]));
+            }
         }
-        false => {
+    });
+}
+
+pub async fn load_profile() -> Result<Profile> {
+    let profile = {
+        if profile_exists() {
+            let data = fs::read_to_string(get_profile_path())?;
+            toml::from_str::<Profile>(&data).or_else(|_| {
+                let mut value = toml::from_str::<toml::Value>(&data)?;
+                debug!("failed to parse profile. attempt to migrate\nraw data: {:#?}", value);
+                migrate_profile(&mut value);
+                value.try_into::<Profile>()
+            })?
+        } else {
             let profile = Profile::new();
             write_profile(&profile).await?;
             profile
@@ -128,13 +147,16 @@ mod tests {
     use std::{fs::File, io::Write};
     use std::os::unix::io::{FromRawFd};
 
-    #[test]
-    fn test_profile() {
-        println!("{:#?}", block_on(load_profile()).ok().unwrap());
+    #[tokio::test]
+    async fn test_profile() -> Result<()> {
+        crate::logger::Logger::init(true)?;
+        let profile = load_profile().await?;
+        println!("{:#?}", profile);
+        Ok(())
     }
 
     fn write_stdin(content: &str) -> Result<()> {
-        let mut fds = [0; 2];
+        let mut fds: [i32; 2] = [0; 2];
         unsafe { libc::pipe(fds.as_mut_ptr()) };
         let reader = fds[0];
         let original = unsafe { libc::dup(STDIN_FILENO) };

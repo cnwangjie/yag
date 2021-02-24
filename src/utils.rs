@@ -1,10 +1,7 @@
 use anyhow::{bail, Result};
+use log::debug;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
-use std::{
-    process::Command,
-    ffi::OsStr,
-    io::{stdin, stdout, Write},
-};
+use std::{ffi::OsStr, io::{Write, stdin, stdout}, process::Command};
 
 const FRAGMENT: &AsciiSet = &CONTROLS.add(b'/');
 
@@ -20,13 +17,14 @@ pub fn spawn(command: &str) -> Result<String> {
 
     cmd.args(args);
 
-    if !cmd.status()?.success() {
+    debug!("executing: {}", command);
+    let output = cmd.output()?;
+
+    if !output.status.success() {
         bail!(format!("Failed to execute {}", command))
     }
 
-    let buf = cmd.output()?.stdout;
-
-    let result = String::from_utf8(buf)?;
+    let result = String::from_utf8(output.stdout)?;
 
     Ok(result)
 }

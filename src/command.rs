@@ -1,6 +1,7 @@
 use crate::logger::Logger;
 use crate::repository::get_repo;
-use crate::repository::Repository;
+use crate::repository::{Repository, ListPullRequestOpt};
+use crate::profile::{prompt_add_profile, load_profile};
 use crate::utils;
 use anyhow::{Error, Result};
 use clap::*;
@@ -31,7 +32,14 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                         .about("Close pull request")
                         .arg(Arg::with_name("id").required(true).takes_value(true)),
                 )
-                .subcommand(SubCommand::with_name("list").about("List pull requests"))
+                .subcommand(
+                    SubCommand::with_name("list").about("List pull requests")
+                        .about("List pull requests of current repository")
+                        .arg(Arg::with_name("author").takes_value(true))
+                        .arg(Arg::with_name("me"))
+                        .arg(Arg::with_name("status").takes_value(true))
+                        .arg(Arg::with_name("page").takes_value(true)),
+                )
                 .subcommand(
                     SubCommand::with_name("create")
                         .alias("new")
@@ -53,6 +61,14 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                         ),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("profile")
+                .about("Manage profiles")
+                .subcommand(
+                    SubCommand::with_name("add")
+                        .about("Add profile config interactively"),
+                )
+        )
 }
 
 pub async fn run() -> Result<()> {
@@ -64,7 +80,7 @@ pub async fn run() -> Result<()> {
 
     if let Some(matches) = matches.subcommand_matches("pr") {
         if let (subcommand, Some(matches)) = matches.subcommand() {
-            let repo: Box<dyn Repository> = get_repo().await?;
+            let repo = get_repo().await?;
             match subcommand {
                 "get" => {
                     let id = matches
@@ -75,7 +91,8 @@ pub async fn run() -> Result<()> {
                     pr.print_detail();
                 }
                 "list" => {
-                    let pull_requests = repo.list_pull_requests().await?;
+                    let opt = ListPullRequestOpt::from(matches.clone());
+                    let pull_requests = repo.list_pull_requests(opt).await?;
                     pull_requests.iter().for_each(|pr| pr.println());
                 }
                 "create" => {
@@ -115,10 +132,23 @@ pub async fn run() -> Result<()> {
                     let pr = repo.close_pull_request(id).await?;
                     pr.print_detail();
                 }
-                _ => {}
+                _ => {
+                }
             }
         } else {
             println!("{}", matches.usage());
+        }
+    } else if let Some(matches) = matches.subcommand_matches("profile") {
+        let (subcommand, _) = matches.subcommand();
+
+        match subcommand {
+            "add" => {
+                let mut profile = load_profile().await?;
+                prompt_add_profile(&mut profile).await?;
+            }
+            _ => {
+                println!("{}", matches.usage());
+            }
         }
     } else {
         println!("{}", matches.usage());

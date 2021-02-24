@@ -1,6 +1,5 @@
 use std::fmt;
-use crate::profile::load_profile;
-use crate::profile::Profile;
+use crate::{profile::load_profile, repository::ListPullRequestOpt};
 use crate::repository::Repository;
 use crate::structs::PullRequest;
 use crate::utils::url_encode;
@@ -20,9 +19,9 @@ pub struct Project {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct User {
-    id: u64,
-    name: String,
-    username: String,
+    pub id: u64,
+    pub name: String,
+    pub username: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -84,7 +83,6 @@ impl From<MergeRequest> for PullRequest {
 
 pub struct GitLabClient {
     host: String,
-    token: String,
     client: reqwest::Client,
 }
 
@@ -97,7 +95,6 @@ impl GitLabClient {
 
         Ok(GitLabClient {
             host: host.to_string(),
-            token: token.to_string(),
             client: client,
         })
     }
@@ -125,7 +122,6 @@ impl GitLabClient {
 }
 
 pub struct GitLabRepository {
-    profile: Profile,
     client: GitLabClient,
     project_id: u64,
 }
@@ -139,7 +135,6 @@ impl GitLabRepository {
         let client = GitLabClient::build(host, &token)?;
         let project_id = client.get_project_id(remote_url.fullname.as_ref()).await?;
         Ok(GitLabRepository {
-            profile,
             client,
             project_id,
         })
@@ -159,15 +154,26 @@ impl Repository for GitLabRepository {
         Ok(PullRequest::from(mr))
     }
 
-    async fn list_pull_requests(&self) -> Result<Vec<PullRequest>> {
-        let res = self
+    async fn list_pull_requests(&self, opt: ListPullRequestOpt) -> Result<Vec<PullRequest>> {
+        let mut req = self
             .client
             .call(
                 Method::GET,
                 &format!("/api/v4/projects/{}/merge_requests", self.project_id),
             )
-            .query(&[("state", "opened"), ("per_page", "100")])
-            .query(&[("page", 1)])
+            .query(&[("state", "opened"), ("per_page", "10")])
+            .query(&[("page", opt.get_page())]);
+
+        if let Some(username) = opt.author {
+            let user = self.get_user_by_username(&username).await?;
+            req = req.query(&[("author_id", user.id)]);
+        }
+
+        if opt.me {
+            req = req.query(&[("scope", "me")]);
+        }
+
+        let res = req
             .send()
             .await?;
 
@@ -214,10 +220,6 @@ impl Repository for GitLabRepository {
 
         debug!("{:#?}", text);
 
-        // let data = res
-        //     .json::<GitLabResponse<MergeRequest>>()
-        //     .await?;
-
         let data = serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?;
 
         debug!("{:#?}", data);
@@ -249,6 +251,25 @@ impl Repository for GitLabRepository {
         match data {
             GitLabResponse::Data(data) => Ok(PullRequest::from(data)),
             _ => bail!(format!("{}", data)),
+        }
+    }
+}
+
+impl GitLabRepository {
+    async fn get_user_by_username(&self, username: &str) -> Result<User> {
+        let res = self.client
+            .call(Method::GET, &format!("/api/users"))
+            .query(&[("username", username)])
+            .send()
+            .await?;
+
+        let text = res.text().await?;
+
+        let data = serde_json::from_str::<GitLabResponse<Vec<User>>>(&text)?;
+
+        match data {
+            GitLabResponse::Data(data) => data.first().cloned().ok_or(anyhow!("unexpected empty response")),
+            _ => bail!(format!("{}", data),)
         }
     }
 }

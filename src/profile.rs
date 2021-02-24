@@ -26,6 +26,7 @@ impl ProfileConfig for GitLabSelfHostedConfig {
         let mut default = vec![];
         let configs = profile.gitlab_self_hosted.as_mut().unwrap_or(&mut default);
         configs.push(self.to_owned());
+        profile.gitlab_self_hosted = Some(configs.to_owned());
     }
 }
 
@@ -113,7 +114,7 @@ pub async fn load_profile() -> Result<Profile> {
     Ok(profile)
 }
 
-pub async fn prompt_add_profile() -> Result<()> {
+pub async fn prompt_add_profile(profile: &mut Profile) -> Result<()> {
     let prompters: Vec<Box<dyn Prompter>> = vec![
         Box::new(GitLabSelfHostedPrompter::default()),
     ];
@@ -126,12 +127,11 @@ pub async fn prompt_add_profile() -> Result<()> {
         .parse::<usize>()
         .ok()
         .filter(|index| choice_range.contains(&index))
-        .and_then(|index| prompters.get(index))
+        .and_then(|index| prompters.get(index-1))
         .ok_or( anyhow!("invalid choice"))?;
 
     let profile_config = profile_prompter.prompt()?;
-    let mut profile = load_profile().await?;
-    profile_config.fill_profile(&mut profile);
+    profile_config.fill_profile(profile);
     println!("{} profile added!", profile_prompter.display_name());
     Ok(())
 }
@@ -139,13 +139,12 @@ pub async fn prompt_add_profile() -> Result<()> {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
-    use futures::executor::block_on;
 
     use libc::STDIN_FILENO;
     use utils::user_input;
 
     use std::{fs::File, io::Write};
-    use std::os::unix::io::{FromRawFd};
+    use std::os::unix::io::FromRawFd;
 
     #[tokio::test]
     async fn test_profile() -> Result<()> {
@@ -182,7 +181,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_prompt_add_profile() -> Result<()> {
-        prompt_add_profile().await?;
+        let mut profile = Profile::new();
+        write_stdin("1\n2\n3\n")?;
+        prompt_add_profile(&mut profile).await?;
+        assert!(profile.gitlab_self_hosted.is_some());
+        let configs = profile.gitlab_self_hosted.unwrap();
+        assert_eq!(configs.len(), 1);
+        assert_eq!(configs[0].host, "2");
+        assert_eq!(configs[0].token, "3");
         Ok(())
     }
 }

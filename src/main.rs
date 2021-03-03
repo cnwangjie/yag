@@ -13,8 +13,8 @@ use command::run;
 #[tokio::main]
 async fn main() -> Result<()> {
     let code = run().await.and(Ok(0)).unwrap_or_else(|err| {
-        eprintln!("{}", err);
-        255
+        eprintln!("Error: {}", err);
+        -1
     });
     std::process::exit(code);
 }

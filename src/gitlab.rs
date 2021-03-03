@@ -46,8 +46,28 @@ pub enum GitLabResponse<T> {
     Data(T),
     Error {
         error: Option<Vec<String>>,
-        message: Option<serde_json::Value>,
+        message: Option<String>,
     },
+}
+
+impl<T> GitLabResponse<T> where T: fmt::Debug {
+    #[inline]
+    fn map<R, F>(&self, f: F) -> Result<R> where F: FnOnce(&T) -> Result<R> {
+        match self {
+            GitLabResponse::Data(data) => f(data),
+            GitLabResponse::Error { error, message } => {
+                debug!("found an error: {:#?}", self);
+
+                if let Some(message) = message {
+                    bail!("{}", message)
+                }
+                if let Some(error) = error {
+                    bail!("{}", error.join("\n"))
+                }
+                bail!("unknown error")
+            },
+        }
+    }
 }
 
 impl<T> fmt::Display for GitLabResponse<T> {
@@ -143,15 +163,18 @@ impl GitLabRepository {
 
 #[async_trait]
 impl Repository for GitLabRepository {
-    // TODO: add error handling for all methods
     async fn get_pull_request(&self, id: usize) -> Result<PullRequest> {
         let res = self.client
             .call(Method::GET, &format!("/api/v4/projects/{}/merge_requests/{}", self.project_id, id))
             .send()
             .await?;
-        let mr = res.json::<MergeRequest>().await?;
 
-        Ok(PullRequest::from(mr))
+        let text = res.text().await?;
+
+        debug!("{:#?}", text);
+
+        serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?
+            .map(|data| Ok(PullRequest::from(data.to_owned())))
     }
 
     async fn list_pull_requests(&self, opt: ListPullRequestOpt) -> Result<Vec<PullRequest>> {
@@ -197,7 +220,6 @@ impl Repository for GitLabRepository {
         target_branch: &str,
         title: &str,
     ) -> Result<PullRequest> {
-        debug!("source: {} target: {}", source_branch, target_branch);
         let res = self
             .client
             .call(
@@ -220,14 +242,8 @@ impl Repository for GitLabRepository {
 
         debug!("{:#?}", text);
 
-        let data = serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?;
-
-        debug!("{:#?}", data);
-
-        match data {
-            GitLabResponse::Data(data) => Ok(PullRequest::from(data)),
-            _ => bail!(format!("{}", data)),
-        }
+        serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?
+            .map(|data| Ok(PullRequest::from(data.to_owned())))
     }
 
     async fn close_pull_request(&self, id: usize) -> Result<PullRequest> {
@@ -245,13 +261,8 @@ impl Repository for GitLabRepository {
         let text = res.text().await?;
         debug!("{:#?}", text);
 
-        let data = serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?;
-
-        debug!("{:#?}", data);
-        match data {
-            GitLabResponse::Data(data) => Ok(PullRequest::from(data)),
-            _ => bail!(format!("{}", data)),
-        }
+        serde_json::from_str::<GitLabResponse<MergeRequest>>(&text)?
+            .map(|data| Ok(PullRequest::from(data.to_owned())))
     }
 }
 
@@ -265,11 +276,9 @@ impl GitLabRepository {
 
         let text = res.text().await?;
 
-        let data = serde_json::from_str::<GitLabResponse<Vec<User>>>(&text)?;
-
-        match data {
-            GitLabResponse::Data(data) => data.first().cloned().ok_or(anyhow!("unexpected empty response")),
-            _ => bail!(format!("{}", data),)
-        }
+        serde_json::from_str::<GitLabResponse<Vec<User>>>(&text)?
+            .map(|data| {
+                data.first().cloned().ok_or(anyhow!("unexpected empty response"))
+            })
     }
 }

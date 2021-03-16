@@ -1,7 +1,7 @@
 use std::fmt;
 use crate::{profile::load_profile, repository::ListPullRequestOpt};
 use crate::repository::Repository;
-use crate::structs::PullRequest;
+use crate::structs::{PullRequest, PaginationResult};
 use crate::utils::url_encode;
 use anyhow::*;
 use async_trait::async_trait;
@@ -191,7 +191,7 @@ impl Repository for GitLabRepository {
             .map(|data| Ok(PullRequest::from(data.to_owned())))
     }
 
-    async fn list_pull_requests(&self, opt: ListPullRequestOpt) -> Result<Vec<PullRequest>> {
+    async fn list_pull_requests(&self, opt: ListPullRequestOpt) -> Result<PaginationResult<PullRequest>> {
         let mut req = self
             .client
             .call(
@@ -216,16 +216,26 @@ impl Repository for GitLabRepository {
 
         debug!("{:#?}", res);
 
-        let data: Vec<MergeRequest> = res.json::<Vec<MergeRequest>>().await?;
+        let total = res.headers()
+            .get("x-total")
+            .map(|v| v.to_str().ok())
+            .flatten()
+            .map(|v| v.parse::<u64>().ok())
+            .flatten()
+            .ok_or(anyhow!("fail to get total"))?;
 
-        debug!("{:#?}", data);
+        let text = res.text().await?;
+        debug!("{:#?}", text);
 
-        let pull_requests = data.iter()
-            .map(|mr| mr.to_owned())
-            .map(PullRequest::from)
-            .collect();
+        let result = serde_json::from_str::<GitLabResponse<Vec<MergeRequest>>>(&text)?
+            .map(|mr| {
+                Ok(mr.iter()
+                    .map(|mr| mr.to_owned())
+                    .map(PullRequest::from)
+                    .collect())
+            })?;
 
-        Ok(pull_requests)
+        Ok(PaginationResult::new(result, total))
     }
 
     async fn create_pull_request(

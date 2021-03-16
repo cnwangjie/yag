@@ -1,4 +1,28 @@
+use std::fmt::Display;
+
 use colored::*;
+
+pub struct PaginationResult<T> {
+    pub total: u64,
+    pub result: Vec<T>,
+}
+
+impl<T> PaginationResult<T> {
+    pub fn new(result: Vec<T>, total: u64) -> Self {
+        PaginationResult {
+            total: total,
+            result: result,
+        }
+    }
+}
+
+impl<T> Display for PaginationResult<T> where T: Display {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.result.iter().for_each(|i| { write!(f, "{}", i); });
+        writeln!(f, "  {} {}", "total:".purple(), self.total);
+        Ok(())
+    }
+}
 
 pub struct PullRequest {
     pub id: u64,
@@ -10,17 +34,16 @@ pub struct PullRequest {
     pub url: String,
 }
 
-impl PullRequest {
-    pub fn println(&self) {
+impl Display for PullRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let id = format!("#{}", self.id).green().bold();
         let title = self.title.white();
         let author = format!("<{}>", self.author).blue().bold();
         let head = format!("[{}]", self.head).cyan();
-        println!("{:>6} {} {} {}", id, title, author, head);
-    }
-
-    pub fn print_detail(&self) {
-        self.println();
-        println!("    {} {}", "link:".bold(), self.url);
+        writeln!(f, "{:>6} {} {} {}", id, title, author, head);
+        if f.alternate() {
+            writeln!(f, "    {} {}", "link:".bold(), self.url);
+        }
+        Ok(())
     }
 }

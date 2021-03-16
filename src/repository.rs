@@ -1,4 +1,4 @@
-use crate::structs::PullRequest;
+use crate::structs::{PaginationResult, PullRequest};
 use crate::gitlab::GitLabRepository;
 use crate::utils::spawn;
 use anyhow::*;
@@ -32,7 +32,7 @@ impl ListPullRequestOpt {
 #[async_trait]
 pub trait Repository {
     async fn get_pull_request(&self, id: usize) -> Result<PullRequest>;
-    async fn list_pull_requests(&self, opt: ListPullRequestOpt) -> Result<Vec<PullRequest>>;
+    async fn list_pull_requests(&self, opt: ListPullRequestOpt) -> Result<PaginationResult<PullRequest>>;
     async fn create_pull_request(
         &self,
         source_branch: &str,

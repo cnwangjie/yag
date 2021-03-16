@@ -1,6 +1,6 @@
 use crate::logger::Logger;
 use crate::repository::get_repo;
-use crate::repository::{Repository, ListPullRequestOpt};
+use crate::repository::ListPullRequestOpt;
 use crate::profile::{prompt_add_profile, load_profile};
 use crate::utils;
 use anyhow::{Error, Result};
@@ -35,10 +35,10 @@ fn get_app<'a, 'b>() -> App<'a, 'b> {
                 .subcommand(
                     SubCommand::with_name("list").about("List pull requests")
                         .about("List pull requests of current repository")
-                        .arg(Arg::with_name("author").takes_value(true))
-                        .arg(Arg::with_name("me"))
-                        .arg(Arg::with_name("status").takes_value(true))
-                        .arg(Arg::with_name("page").takes_value(true)),
+                        .arg(Arg::with_name("author").long("author").takes_value(true))
+                        .arg(Arg::with_name("me").long("me"))
+                        .arg(Arg::with_name("status").long("status").takes_value(true))
+                        .arg(Arg::with_name("page").long("page").takes_value(true)),
                 )
                 .subcommand(
                     SubCommand::with_name("create")
@@ -88,12 +88,12 @@ pub async fn run() -> Result<()> {
                         .and_then(|s| s.parse::<usize>().ok())
                         .unwrap();
                     let pr = repo.get_pull_request(id).await?;
-                    pr.print_detail();
+                    println!("{:#}", pr);
                 }
                 "list" => {
                     let opt = ListPullRequestOpt::from(matches.clone());
-                    let pull_requests = repo.list_pull_requests(opt).await?;
-                    pull_requests.iter().for_each(|pr| pr.println());
+                    let result = repo.list_pull_requests(opt).await?;
+                    print!("{:#}", result);
                 }
                 "create" => {
                     let source_branch = match matches.value_of("head") {
@@ -116,13 +116,13 @@ pub async fn run() -> Result<()> {
                         })
                         .ok_or(Error::msg("Cannot get latest commit message. Please specify title manually."))?;
 
-                    repo.create_pull_request(
-                        &source_branch,
-                        &target_branch,
-                        &title,
-                    )
-                    .await?
-                    .print_detail();
+                    let pr = repo.create_pull_request(
+                            &source_branch,
+                            &target_branch,
+                            &title,
+                        )
+                        .await?;
+                    print!("{:#}", pr);
                 }
                 "close" => {
                     let id = matches
@@ -130,7 +130,7 @@ pub async fn run() -> Result<()> {
                         .and_then(|s| s.parse::<usize>().ok())
                         .unwrap();
                     let pr = repo.close_pull_request(id).await?;
-                    pr.print_detail();
+                    print!("{:#}", pr);
                 }
                 _ => {
                 }

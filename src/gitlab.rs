@@ -10,7 +10,7 @@ use log::debug;
 use reqwest::header::HeaderMap;
 use reqwest::{Client, Method, RequestBuilder, Url};
 use serde_derive::*;
-use serde_json::json;
+use serde_json::{json, Value};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Project {
@@ -46,7 +46,7 @@ pub enum GitLabResponse<T> {
     Data(T),
     Error {
         error: Option<Vec<String>>,
-        message: Option<String>,
+        message: Option<Value>,
     },
 }
 
@@ -58,13 +58,27 @@ impl<T> GitLabResponse<T> where T: fmt::Debug {
             GitLabResponse::Error { error, message } => {
                 debug!("found an error: {:#?}", self);
 
-                if let Some(message) = message {
-                    bail!("{}", message)
-                }
-                if let Some(error) = error {
-                    bail!("{}", error.join("\n"))
-                }
-                bail!("unknown error")
+                let message = message
+                    .clone()
+                    .and_then(|message| {
+                        match message {
+                            Value::String(message) => Some(message),
+                            Value::Array(messages) => {
+                                let message = messages
+                                    .iter()
+                                    .filter_map(|i| i.as_str())
+                                    .map(|i| i.to_string())
+                                    .collect::<Vec<String>>()
+                                    .join("\n");
+                                Some(message)
+                            },
+                            _ => None,
+                        }
+                    })
+                    .or_else(move || error.clone().map(|i| i.join("\n")))
+                    .unwrap_or("unknown error".to_string());
+
+                bail!(message)
             },
         }
     }

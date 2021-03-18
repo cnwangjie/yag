@@ -21,16 +21,21 @@ pub fn spawn(command: &str) -> Result<String> {
     let output = cmd.output()?;
 
     if !output.status.success() {
+        debug!("stderr: {}", String::from_utf8(output.stderr)?);
         bail!(format!("Failed to execute {}", command))
     }
 
     let result = String::from_utf8(output.stdout)?;
-
+    debug!("result: {}", result);
     Ok(result)
 }
 
 pub fn get_current_branch() -> Result<String> {
     spawn("git rev-parse --abbrev-ref HEAD").map(|x| x.trim().to_string())
+}
+
+pub fn get_rev(rev: &str) -> Result<String> {
+    spawn(&format!("git rev-list {}", rev)).map(|x| x.trim().to_string())
 }
 
 pub fn get_latest_commit_message() -> Result<String> {

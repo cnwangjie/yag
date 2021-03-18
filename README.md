@@ -1,7 +1,7 @@
 # yag
 YAG is Yet Another Git CLI tool.
 
-![Rust](https://github.com/cnwangjie/yag/workflows/Rust/badge.svg)
+![Rust](https://github.com/cnwangjie/yag/workflows/Test/badge.svg)
 ![crate.io](https://img.shields.io/crates/v/yag.svg)
 ![crate.io](https://img.shields.io/crates/d/yag.svg)
 

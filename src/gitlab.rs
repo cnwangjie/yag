@@ -207,7 +207,7 @@ impl Repository for GitLabRepository {
         }
 
         if opt.me {
-            req = req.query(&[("scope", "me")]);
+            req = req.query(&[("scope", "created-by-me")]);
         }
 
         let res = req

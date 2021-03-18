@@ -48,7 +48,7 @@ pub fn get_remote_url() -> Result<GitUrl> {
 }
 
 pub async fn get_repo() -> Result<Box<dyn Repository>> {
-    let remote_url: GitUrl = get_remote_url().expect("no remote is set for current repository");
+    let remote_url: GitUrl = get_remote_url().ok().ok_or(anyhow!("no remote is set for current repository"))?;
     let remote_host = remote_url
         .clone()
         .host

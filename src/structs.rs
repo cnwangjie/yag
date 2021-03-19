@@ -18,8 +18,10 @@ impl<T> PaginationResult<T> {
 
 impl<T> Display for PaginationResult<T> where T: Display {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.result.iter().for_each(|i| { write!(f, "{}", i); });
-        writeln!(f, "  {} {}", "total:".purple(), self.total);
+        for item in self.result.iter() {
+            write!(f, "{}", item)?;
+        }
+        writeln!(f, "  {} {}", "total:".purple(), self.total)?;
         Ok(())
     }
 }
@@ -40,9 +42,9 @@ impl Display for PullRequest {
         let title = self.title.white();
         let author = format!("<{}>", self.author).blue().bold();
         let head = format!("[{}]", self.head).cyan();
-        writeln!(f, "{:>6} {} {} {}", id, title, author, head);
+        writeln!(f, "{:>6} {} {} {}", id, title, author, head)?;
         if f.alternate() {
-            writeln!(f, "    {} {}", "link:".bold(), self.url);
+            writeln!(f, "    {} {}", "link:".bold(), self.url)?;
         }
         Ok(())
     }

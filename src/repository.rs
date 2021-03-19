@@ -1,5 +1,5 @@
 use crate::structs::{PaginationResult, PullRequest};
-use crate::gitlab::GitLabRepository;
+use crate::gitlab::repository::GitLabRepository;
 use crate::utils::spawn;
 use anyhow::*;
 use async_trait::async_trait;

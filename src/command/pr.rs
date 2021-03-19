@@ -1,7 +1,6 @@
 use clap::{App, Arg, ArgMatches, SubCommand};
 use anyhow::{Error, Result, bail};
 use colored::Colorize;
-use log::warn;
 use utils::user_input;
 
 use crate::repository::{get_repo, ListPullRequestOpt};

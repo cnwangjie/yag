@@ -45,9 +45,15 @@ pub enum GitLabResponse<T> {
     },
 }
 
-impl<T> GitLabResponse<T> where T: fmt::Debug {
+impl<T> GitLabResponse<T>
+where
+    T: fmt::Debug,
+{
     #[inline]
-    pub fn map<R, F>(&self, f: F) -> Result<R> where F: FnOnce(&T) -> Result<R> {
+    pub fn map<R, F>(&self, f: F) -> Result<R>
+    where
+        F: FnOnce(&T) -> Result<R>,
+    {
         match self {
             GitLabResponse::Data(data) => f(data),
             GitLabResponse::Error { error, message } => {
@@ -55,26 +61,24 @@ impl<T> GitLabResponse<T> where T: fmt::Debug {
 
                 let message = message
                     .clone()
-                    .and_then(|message| {
-                        match message {
-                            Value::String(message) => Some(message),
-                            Value::Array(messages) => {
-                                let message = messages
-                                    .iter()
-                                    .filter_map(|i| i.as_str())
-                                    .map(|i| i.to_string())
-                                    .collect::<Vec<String>>()
-                                    .join("\n");
-                                Some(message)
-                            },
-                            _ => None,
+                    .and_then(|message| match message {
+                        Value::String(message) => Some(message),
+                        Value::Array(messages) => {
+                            let message = messages
+                                .iter()
+                                .filter_map(|i| i.as_str())
+                                .map(|i| i.to_string())
+                                .collect::<Vec<String>>()
+                                .join("\n");
+                            Some(message)
                         }
+                        _ => None,
                     })
                     .or_else(move || error.clone().map(|i| i.join("\n")))
                     .unwrap_or("unknown error".to_string());
 
                 bail!(message)
-            },
+            }
         }
     }
 }
@@ -82,16 +86,15 @@ impl<T> GitLabResponse<T> where T: fmt::Debug {
 impl<T> fmt::Display for GitLabResponse<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
         match &*self {
-            GitLabResponse::Error {
-                error,
-                message,
-            } => {
-                let msg = message.as_ref().and_then(|m| Some(format!("{:#}", m)))
+            GitLabResponse::Error { error, message } => {
+                let msg = message
+                    .as_ref()
+                    .and_then(|m| Some(format!("{:#}", m)))
                     .or_else(|| error.as_ref().and_then(|err| Some(err.join("\n"))))
                     .unwrap_or("unknown error".to_string());
                 write!(f, "{}", msg)
-            },
-            _ => write!(f, "[data]")
+            }
+            _ => write!(f, "[data]"),
         }
     }
 }
@@ -102,8 +105,8 @@ impl From<MergeRequest> for PullRequest {
             id: mr.iid,
             title: mr.title,
             author: mr.author.username,
-            base: mr.target_branch,
-            head: mr.source_branch,
+            base: Some(mr.target_branch),
+            head: Some(mr.source_branch),
             updated_at: mr.updated_at,
             url: mr.web_url,
         }

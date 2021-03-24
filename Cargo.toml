@@ -28,6 +28,7 @@ async-trait = "^0.1.40"
 clap = "^2.33.3"
 log = { version = "^0.4.11", features = ["std"] }
 colored = "^2"
+base64 = "0.13"
 
 [dev-dependencies]
 libc = "0.2"

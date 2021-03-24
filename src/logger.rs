@@ -1,6 +1,6 @@
 use anyhow::Result;
-use log::{LevelFilter, Log, Metadata, Level, Record, max_level, set_boxed_logger, set_max_level};
 use colored::*;
+use log::{max_level, set_boxed_logger, set_max_level, Level, LevelFilter, Log, Metadata, Record};
 
 pub struct Logger {}
 

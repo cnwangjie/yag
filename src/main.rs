@@ -1,5 +1,6 @@
 mod command;
 mod gitlab;
+mod github;
 mod logger;
 mod profile;
 mod repository;

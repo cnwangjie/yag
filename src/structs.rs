@@ -16,7 +16,7 @@ impl<T> PaginationResult<T> {
     }
 }
 
-impl<T> Display for PaginationResult<T> where T: Display {
+impl<T: Display> Display for PaginationResult<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for item in self.result.iter() {
             write!(f, "{}", item)?;
@@ -26,11 +26,24 @@ impl<T> Display for PaginationResult<T> where T: Display {
     }
 }
 
+impl<T> PaginationResult<T> {
+    #[inline]
+    pub fn map<R, F>(&self, f: F) -> PaginationResult<R>
+    where
+        F: FnMut(&T) -> R,
+    {
+        PaginationResult {
+            total: self.total,
+            result: self.result.iter().map(f).collect::<Vec<R>>(),
+        }
+    }
+}
+
 pub struct PullRequest {
     pub id: u64,
     pub title: String,
-    pub base: String,
-    pub head: String,
+    pub base: Option<String>,
+    pub head: Option<String>,
     pub author: String,
     pub updated_at: String,
     pub url: String,
@@ -41,10 +54,15 @@ impl Display for PullRequest {
         let id = format!("#{}", self.id).green().bold();
         let title = self.title.white();
         let author = format!("<{}>", self.author).blue().bold();
-        let head = format!("[{}]", self.head).cyan();
-        writeln!(f, "{:>6} {} {} {}", id, title, author, head)?;
+        let head = self
+            .head
+            .to_owned()
+            .map(|head| format!("[{}]", head).cyan())
+            .unwrap_or_default();
+
+        write!(f, "{:>6} {} {} {}", id, title, author, head)?;
         if f.alternate() {
-            writeln!(f, "    {} {}", "link:".bold(), self.url)?;
+            write!(f, "\n    {} {}", "link:".bold(), self.url)?;
         }
         Ok(())
     }

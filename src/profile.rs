@@ -1,69 +1,44 @@
-use anyhow::{Result, anyhow};
+use crate::github::profile::{GitHubConfig, GitHubPrompter};
+use crate::gitlab::profile::{GitLabSelfHostedConfig, GitLabSelfHostedPrompter};
+use crate::utils;
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
 use log::debug;
 use serde_derive::*;
 use std::env;
 use std::fs;
 use std::path::Path;
-use crate::utils;
 
 pub trait ProfileConfig {
     fn fill_profile(&self, profile: &mut Profile);
 }
 
+#[async_trait]
 pub trait Prompter {
     fn display_name(&self) -> String;
-    fn prompt(&self) -> Result<Box<dyn ProfileConfig>>;
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct GitLabSelfHostedConfig {
-    host: String,
-    token: String,
-}
-
-impl ProfileConfig for GitLabSelfHostedConfig {
-    fn fill_profile(&self, profile: &mut Profile) {
-        let mut default = vec![];
-        let configs = profile.gitlab_self_hosted.as_mut().unwrap_or(&mut default);
-        configs.push(self.to_owned());
-        profile.gitlab_self_hosted = Some(configs.to_owned());
-    }
-}
-
-#[derive(Default)]
-pub struct GitLabSelfHostedPrompter;
-
-impl Prompter for GitLabSelfHostedPrompter {
-    fn display_name(&self) -> String {
-        "GitLab (self-hosted)".to_string()
-    }
-    fn prompt(&self) -> Result<Box<dyn ProfileConfig>> {
-        Ok(Box::new(GitLabSelfHostedConfig {
-            host: utils::user_input("host: ")?,
-            token: utils::user_input("token: ")?,
-        }))
-    }
+    async fn prompt(&self) -> Result<Box<dyn ProfileConfig>>;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Profile {
-    gitlab_self_hosted: Option<Vec<GitLabSelfHostedConfig>>,
+    pub gitlab_self_hosted: Option<Vec<GitLabSelfHostedConfig>>,
+    pub github: Option<GitHubConfig>,
 }
 
 impl Profile {
-    fn new() -> Profile {
-        Profile {
+    fn new() -> Self {
+        Self {
             gitlab_self_hosted: None,
+            github: None,
         }
     }
 
-    pub fn get_token_by_host(&self, host: &str) -> Option<String> {
+    pub fn get_gitlab_token_by_host(&self, host: &str) -> Option<String> {
         self.gitlab_self_hosted.as_ref().and_then(|configs| {
-            configs.iter().find(|config| {
-                config.host.eq(host)
-            }).and_then(|config| {
-                Some(config.token.clone())
-            })
+            configs
+                .iter()
+                .find(|config| config.host.eq(host))
+                .and_then(|config| Some(config.token.clone()))
         })
     }
 }
@@ -76,7 +51,7 @@ fn profile_exists() -> bool {
     Path::new(&get_profile_path()).exists()
 }
 
-async fn write_profile(profile: &Profile) -> Result<()> {
+pub async fn write_profile(profile: &Profile) -> Result<()> {
     fs::create_dir_all(Path::new(&get_profile_path()).parent().unwrap())?;
     fs::write(get_profile_path(), toml::to_vec(profile)?)?;
     Ok(())
@@ -88,7 +63,10 @@ fn migrate_profile(value: &mut toml::Value) {
         if let Some(config) = v.get("gitlab_self_hosted") {
             if !config.is_array() {
                 let config = config.clone();
-                v.insert("gitlab_self_hosted".to_string(), toml::Value::Array(vec![config]));
+                v.insert(
+                    "gitlab_self_hosted".to_string(),
+                    toml::Value::Array(vec![config]),
+                );
             }
         }
     });
@@ -100,7 +78,10 @@ pub async fn load_profile() -> Result<Profile> {
             let data = fs::read_to_string(get_profile_path())?;
             toml::from_str::<Profile>(&data).or_else(|_| {
                 let mut value = toml::from_str::<toml::Value>(&data)?;
-                debug!("failed to parse profile. attempt to migrate\nraw data: {:#?}", value);
+                debug!(
+                    "failed to parse profile. attempt to migrate\nraw data: {:#?}",
+                    value
+                );
                 migrate_profile(&mut value);
                 value.try_into::<Profile>()
             })?
@@ -117,20 +98,25 @@ pub async fn load_profile() -> Result<Profile> {
 pub async fn prompt_add_profile(profile: &mut Profile) -> Result<()> {
     let prompters: Vec<Box<dyn Prompter>> = vec![
         Box::new(GitLabSelfHostedPrompter::default()),
+        Box::new(GitHubPrompter::default()),
     ];
     for (i, prompter) in prompters.iter().enumerate() {
-        println!("{:>3}: {}", i+1, prompter.display_name());
+        println!("{:>3}: {}", i + 1, prompter.display_name());
     }
     let choice_range = 1..=prompters.len();
 
-    let profile_prompter = utils::user_input(&format!("select which type profile you want to create ({}-{}): ", choice_range.start(), choice_range.end()))?
-        .parse::<usize>()
-        .ok()
-        .filter(|index| choice_range.contains(&index))
-        .and_then(|index| prompters.get(index-1))
-        .ok_or( anyhow!("invalid choice"))?;
+    let profile_prompter = utils::user_input(&format!(
+        "select which type profile you want to create ({}-{}): ",
+        choice_range.start(),
+        choice_range.end(),
+    ))?
+    .parse::<usize>()
+    .ok()
+    .filter(|index| choice_range.contains(&index))
+    .and_then(|index| prompters.get(index - 1))
+    .ok_or(anyhow!("invalid choice"))?;
 
-    let profile_config = profile_prompter.prompt()?;
+    let profile_config = profile_prompter.prompt().await?;
     profile_config.fill_profile(profile);
     println!("{} profile added!", profile_prompter.display_name());
     Ok(())
@@ -143,8 +129,8 @@ mod tests {
     use libc::STDIN_FILENO;
     use utils::user_input;
 
-    use std::{fs::File, io::Write};
     use std::os::unix::io::FromRawFd;
+    use std::{fs::File, io::Write};
 
     #[tokio::test]
     async fn test_profile() -> Result<()> {

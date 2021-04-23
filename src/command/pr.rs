@@ -143,7 +143,7 @@ impl<'a> Command<'a> {
             .await?
             .create_pull_request(&source_branch, &target_branch, &title)
             .await?;
-        print!("{:#}", pr);
+        println!("{:#}", pr);
         Ok(())
     }
 
@@ -155,7 +155,7 @@ impl<'a> Command<'a> {
             .unwrap();
         let pr = get_repo().await?.close_pull_request(id).await?;
 
-        print!("{:#}", pr);
+        println!("{:#}", pr);
         Ok(())
     }
 }

@@ -19,7 +19,7 @@ impl<T> PaginationResult<T> {
 impl<T: Display> Display for PaginationResult<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for item in self.result.iter() {
-            write!(f, "{}", item)?;
+            writeln!(f, "{}", item)?;
         }
         writeln!(f, "  {} {}", "total:".purple(), self.total)?;
         Ok(())

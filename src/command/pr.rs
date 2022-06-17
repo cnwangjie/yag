@@ -17,6 +17,11 @@ pub fn sub_command<'a, 'b>() -> App<'a, 'b> {
                 .arg(Arg::with_name("id").required(true).takes_value(true)),
         )
         .subcommand(
+            SubCommand::with_name("open")
+                .about("Open pull request in browser")
+                .arg(Arg::with_name("id").required(true).takes_value(true)),
+        )
+        .subcommand(
             SubCommand::with_name("close")
                 .about("Close pull request")
                 .arg(Arg::with_name("id").required(true).takes_value(true)),
@@ -74,6 +79,7 @@ impl<'a> Command<'a> {
     pub async fn run(&self) -> Result<()> {
         match self.command {
             "get" => self.get().await,
+            "open" => self.open().await,
             "list" => self.list().await,
             "create" => self.create().await,
             "close" => self.close().await,
@@ -91,6 +97,20 @@ impl<'a> Command<'a> {
         let pr = get_repo().await?.get_pull_request(id).await?;
 
         println!("{:#}", pr);
+
+        Ok(())
+    }
+
+    async fn open(&self) -> Result<()> {
+        let id = self
+            .matches
+            .value_of("id")
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap();
+
+        let pr = get_repo().await?.get_pull_request(id).await?;
+
+        open::that(pr.url)?;
 
         Ok(())
     }

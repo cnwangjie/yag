@@ -35,7 +35,10 @@ pub struct AccessToken {
 #[serde(untagged)]
 pub enum GitHubResponse<T> {
     Ok(T),
-    Error { error: String },
+    Error {
+        error: Option<String>,
+        message: String,
+    },
 }
 
 impl<T> GitHubResponse<T>
@@ -49,9 +52,9 @@ where
     {
         match self {
             GitHubResponse::Ok(data) => f(data),
-            GitHubResponse::Error { error } => {
+            GitHubResponse::Error { error, message } => {
                 debug!("found an error: {:#?}", self);
-                bail!("error")
+                bail!(message.to_string())
             }
         }
     }

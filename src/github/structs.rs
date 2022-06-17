@@ -3,7 +3,6 @@ use log::debug;
 use std::fmt;
 
 use serde_derive::*;
-use serde_json::Value;
 
 use crate::structs::{PaginationResult, PullRequest};
 

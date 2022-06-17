@@ -1,5 +1,4 @@
 use anyhow::Result;
-use clap::crate_version;
 use log::debug;
 use reqwest::{header::HeaderMap, Client, Method, RequestBuilder, Response, Url};
 use serde_json::json;

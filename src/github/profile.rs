@@ -67,7 +67,7 @@ impl Prompter for GitHubPrompter {
                                 deadline.duration_since(start_time).as_secs()
                             );
 
-                            tokio::time::delay_until(deadline).await;
+                            tokio::time::sleep_until(deadline).await;
                         }
                         "expired_token" => bail!("expired"),
                         _ => bail!("unknown error"),

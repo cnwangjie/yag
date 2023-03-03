@@ -13,6 +13,7 @@ pub struct ListPullRequestOpt {
     pub author: Option<String>,
     page: Option<usize>,
     pub me: bool,
+    pub head: Option<String>,
 }
 
 impl<'a> From<ArgMatches<'a>> for ListPullRequestOpt {
@@ -24,6 +25,7 @@ impl<'a> From<ArgMatches<'a>> for ListPullRequestOpt {
                 .value_of("page")
                 .and_then(|s| s.parse::<usize>().ok()),
             me: matches.is_present("me"),
+            head: None,
         }
     }
 }

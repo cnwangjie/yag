@@ -70,6 +70,10 @@ impl Repository for GitLabRepository {
             req = req.query(&[("scope", "created-by-me")]);
         }
 
+        if let Some(head) = opt.head.clone() {
+            req = req.query(&[("source_branch", head)]);
+        }
+
         let res = req.send().await?;
 
         debug!("{:#?}", res);

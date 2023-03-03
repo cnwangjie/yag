@@ -19,7 +19,7 @@ pub fn sub_command<'a, 'b>() -> App<'a, 'b> {
         .subcommand(
             SubCommand::with_name("open")
                 .about("Open pull request in browser")
-                .arg(Arg::with_name("id").required(true).takes_value(true)),
+                .arg(Arg::with_name("id").takes_value(true)),
         )
         .subcommand(
             SubCommand::with_name("close")
@@ -105,10 +105,26 @@ impl<'a> Command<'a> {
         let id = self
             .matches
             .value_of("id")
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap();
+            .and_then(|s| s.parse::<usize>().ok());
 
-        let pr = get_repo().await?.get_pull_request(id).await?;
+        let repo = get_repo().await?;
+
+        let pr = match id {
+            Some(id) => repo.get_pull_request(id).await?,
+            None => {
+                let current_branch = utils::get_current_branch()?;
+                let mut opt = ListPullRequestOpt::default();
+                opt.head = Some(current_branch.to_owned());
+                let result = repo.list_pull_requests(opt).await?;
+                let pr = result.result.first().ok_or(anyhow::anyhow!(
+                    "no pull request for current branch: {}",
+                    &current_branch
+                ))?;
+                pr.to_owned()
+            }
+        };
+
+        log::info!("opening {}", pr.url);
 
         open::that(pr.url)?;
 

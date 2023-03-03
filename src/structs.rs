@@ -39,6 +39,7 @@ impl<T> PaginationResult<T> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct PullRequest {
     pub id: u64,
     pub title: String,

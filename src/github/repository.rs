@@ -76,6 +76,10 @@ impl Repository for GitHubRepository {
             pairs.push(("author".into(), author));
         }
 
+        if let Some(head) = opt.head.clone() {
+            pairs.push(("head".into(), head));
+        }
+
         let res = self
             .client
             .call(Method::GET, "/search/issues")
